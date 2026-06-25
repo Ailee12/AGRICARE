@@ -1,9 +1,10 @@
 # apps/farmers/urls.py
 from django.urls import path
-from apps.farmers.views import FarmerIdentifyView
+import apps.farmers.views  
 
 app_name = 'farmers'
 
 urlpatterns = [
-    path('identify/', FarmerIdentifyView.as_view(), name='farmer-identify'),
+    path('identify/', apps.farmers.views.FarmerIdentifyView.as_view(), name='farmer-identify'),
+    path('update/', apps.farmers.views.FarmerUpdateView.as_view(), name='farmer-update'),
 ]
