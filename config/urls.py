@@ -15,4 +15,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', health_check, name='health_check'),
     path('api/v1/farmers/', include('apps.farmers.urls', namespace='farmers')),
+    path('api/v1/consultations/', include('apps.consultations.urls', namespace='consultations')),
 ]

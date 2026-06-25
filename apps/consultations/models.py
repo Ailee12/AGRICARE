@@ -16,7 +16,7 @@ class ConsultationLog(BaseModel):
         'farmers.Farmer',
         on_delete=models.CASCADE,
         related_name='consultations',
-        db_index=True, # Explicit index for rapid historical lookups per farmer
+        db_index=True, 
         help_text="The specific farmer profile associated with this health query history log"
     )
 
