@@ -1,9 +1,10 @@
 # apps/consultations/urls.py
 from django.urls import path
-from apps.consultations.views import ConsultationCreateView
+from . import views
 
 app_name = 'consultations'  
 
 urlpatterns = [
-    path('log-case/', ConsultationCreateView.as_view(), name='consultation-log-case'),
+    path('log-case/', views.ConsultationCreateView.as_view(), name='consultation-log-case'),
+    path('webhooks/whatsapp/', views.WhatsAppWebhookView.as_view(), name='whatsapp-webhook'),
 ]
