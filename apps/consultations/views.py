@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from apps.farmers.models import Farmer
 from apps.consultations.serializers import ConsultationLogSerializer
+from apps.consultations.tasks import process_whatsapp_message
 
 class ConsultationCreateView(APIView):
     
@@ -94,8 +95,9 @@ class WhatsAppWebhookView(APIView):
                 phone_number = message.get('from') # e.g., "2348012345678"
                 message_text = message.get('text', {}).get('body', '').strip()
                 
-                # For Milestone 2 Step 5, we will trigger your Celery task here:
-                # process_whatsapp_message.delay(phone_number, message_text)
+                # Trigger Celery task 
+                if phone_number and message_text:
+                    process_whatsapp_message.delay(phone_number, message_text)
                 
                 print(f"Webhook parsed text from +{phone_number}: '{message_text}'")
                 
@@ -103,6 +105,6 @@ class WhatsAppWebhookView(APIView):
             # Pass silently if the payload layout doesn't match a message text structure
             pass
             
-        # Milestone 2 Step 4 Rule: Always return an immediate 200 OK to Meta
+        # Return an immediate 200 OK to Meta
         # within 5 seconds so they don't loop duplicate retries on your server.
         return Response({"status": "received"}, status=status.HTTP_200_OK)

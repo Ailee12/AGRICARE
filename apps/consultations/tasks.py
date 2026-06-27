@@ -1,5 +1,6 @@
 # apps/consultations/tasks.py
 from celery import shared_task
+from apps.utils.whatsapp import send_whatsapp_message
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,13 +18,13 @@ def process_whatsapp_message(phone_number, message_text):
         # Setting up the Echo String
         echo_response = f"AgroCare Confirmation — You said: '{message_text}'"
         
-        logger.info(f"Echo text prepared: '{echo_response}'")
+        # TRIGGER OUTBOUND AIRTIME REPLIES VIA META
+        delivery_status = send_whatsapp_message(phone_number, echo_response)
         
-        # 📤 FUTURE OUTBOUND TELEMETRY:
-        # This is where your Milestone 2, Step 6 'send_whatsapp_message' utility will be called:
-        # send_whatsapp_message(phone_number, echo_response)
-        
-        return f"Processed echo for +{phone_number}"
+        if delivery_status:
+            return f"Echo successfully sent to +{phone_number}"
+        else:
+            return f"Task completed but outbound network delivery failed for +{phone_number}"
         
     except Exception as e:
         logger.error(f"Error processing background task: {str(e)}")
