@@ -1,10 +1,3 @@
-# apps/utils/sms.py
-import requests
-import os
-import logging
-
-logger = logging.getLogger(__name__)
-
 def send_outbound_sms(to_phone, message_body):
 
     USERNAME = os.getenv("AT_USERNAME", "sandbox")
@@ -14,7 +7,12 @@ def send_outbound_sms(to_phone, message_body):
         logger.warning(f"SMS credentials dropped. Simulating SMS text to {to_phone}: '{message_body}'")
         return False
 
-    url = "https://api.africastalking.com/version1/messaging"
+    # --- FIXED: Dynamically route sandbox requests vs live production requests ---
+    if USERNAME.lower() == "sandbox":
+        url = "https://api.sandbox.africastalking.com/version1/messaging"
+    else:
+        url = "https://api.africastalking.com/version1/messaging"
+
     headers = {
         "ApiKey": API_KEY,
         "Accept": "application/json",
@@ -28,6 +26,7 @@ def send_outbound_sms(to_phone, message_body):
 
     try:
         response = requests.post(url, headers=headers, data=data, timeout=10)
+        # Note: Africa's Talking replies with a 201 Created status code on successful queue
         if response.status_code == 201:
             logger.info(f"Outbound text payload deployed safely to {to_phone}")
             return True
