@@ -58,17 +58,20 @@ def process_ussd_consultation(case_id):
         logger.info(f"Worker processing logged case ID {case.id} — Symptoms: '{case.symptoms_reported}'")
         
         detected_lang = case.farmer.preferred_language if (case.farmer and case.farmer.preferred_language) else "en"
+        
+        # Call the live AI engine
         ai_diagnosis = consult_agrocare_ai(case.symptoms_reported, detected_lang)
 
+        # Parse keys out of the expected dictionary payload
         ai_text = ai_diagnosis.get("answer", "")
         urgency_level = ai_diagnosis.get("urgency", "GREEN")
         should_escalate = ai_diagnosis.get("escalate", False)
         detected_disease = ai_diagnosis.get("disease_name", "Condition Evaluated")
 
-        case.ai_response = ai_text
-        case.detected_disease_name = detected_disease
+        # --- FIXED: Saving directly into your model's actual 'ai_diagnosis' field ---
+        case.ai_diagnosis = f"[{detected_disease}] | Urgency: {urgency_level} | {ai_text}"
         
-        # 3. Handle dashboard emergency tracking states
+        # Handle dashboard emergency tracking states
         if should_escalate or urgency_level in ["RED", "HIGH"]:
             case.status = "escalated"
             case.save()
@@ -78,11 +81,16 @@ def process_ussd_consultation(case_id):
             case.save()
             delivery_msg = f"AgroCare AI Advice for {detected_disease}:\n{ai_text}"
 
-        # Read the phone number from the linked farmer object!
+        # Read the phone number from the linked farmer object securely
         send_outbound_sms(case.farmer.phone_number, delivery_msg)
         return f"SUCCESS_USSD_{case_id}"
     
     except ConsultationLog.DoesNotExist:
+        logger.error(f"Task received missing consultation log target record ID: {case_id}")
+        return "FAILURE"
+    except Exception as general_err:
+        # Crucial fallback: captures AI network request timeouts or schema format exceptions
+        logger.error(f"Task runtime execution breakdown for case {case_id}: {str(general_err)}")
         return "FAILURE"
     
 
