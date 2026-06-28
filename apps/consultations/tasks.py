@@ -55,7 +55,7 @@ def process_ussd_consultation(case_id):
     """
     try:
         case = ConsultationLog.objects.get(id=case_id)
-        logger.info(f"Worker processing logged case ID {case.id} — Symptoms: '{case.raw_query}'")
+        logger.info(f"Worker processing logged case ID {case.id} — Symptoms: '{case.symptoms_reported}'")
         
         # 🧠 INJECTING MILESTONE 4 SIMULATION
         ai_diagnosis = consult_agrocare_ai(case.raw_query,case.language)
