@@ -132,107 +132,107 @@ class WhatsAppWebhookView(APIView):
 logger = logging.getLogger(__name__)
 
 class USSDWebhookView(APIView):
-
     authentication_classes = []
     permission_classes = []
 
     def post(self, request, *args, **kwargs):
-        # Capture Form Parameters from Africa's Talking
-        session_id = request.data.get("sessionId")
-        phone_number = request.data.get("phoneNumber")
-        text = request.data.get("text", "")
+        try:
+            # Capture Form Parameters from Africa's Talking
+            session_id = request.data.get("sessionId")
+            phone_number = request.data.get("phoneNumber")
+            text = request.data.get("text", "")
 
-        logger.info(f"USSD Interaction — Session: {session_id} | Text: '{text}'")
+            logger.info(f"USSD Interaction — Session: {session_id} | Text: '{text}'")
 
-        session_key = f"ussd_{session_id}"
-        session_state = cache.get(session_key)
-
-        # State Initialization (Brand New Dial-in)
-        if not session_state:
-            try:
-                # Instantly recognize registered farmers
-                farmer = Farmer.objects.get(phone_number=phone_number)
-                first_name = farmer.name.split()[0]
-                welcome_msg = f"CON Welcome back, {first_name} to AgroCare.\n"
-            except Farmer.DoesNotExist:
-                welcome_msg = "CON Welcome to AgroCare.\n"
-
-            session_state = {
-                "current_menu": "welcome",
-                "language": None,
-                "symptoms": "",
-                "welcome_msg": welcome_msg
-            }
-            cache.set(session_key, session_state, timeout=300) # 5 Minute safety TTL
-
-        # Explode cumulative string path inputs into an actionable sequence array
-        user_inputs = text.split("*") if text else []
-        response_text = ""
-
-        # Dynamic Menu State Machine Engine
-        if not text:
-            # Screen 1: Welcome & Language Menu
-            response_text = f"{session_state['welcome_msg']}Select Language:\n1. English\n2. Hausa\n3. Yoruba"
-            session_state["current_menu"] = "language_selection"
-
-        elif len(user_inputs) == 1:
-            # Screen 2: Map Chosen Language & Prompt for Symptoms
-            lang_choice = user_inputs[0]
-            lang_map = {"1": "english", "2": "hausa", "3": "yoruba"}
-            chosen_lang = lang_map.get(lang_choice, "english")
+            session_key = f"ussd_{session_id}"
             
-            session_state["language"] = chosen_lang
-            session_state["current_menu"] = "symptom_input"
-            
-            # Localized prompt copies
-            if chosen_lang == "hausa":
-                response_text = "CON Da fatan za a rubuta alamomin cutar kaji a takaice:"
-            elif chosen_lang == "yoruba":
-                response_text = "CON Jọ̀wọ́ kọ àwọn àmì àìsàn àwọn adìẹ rẹ ní ṣókí níhìn-ín:"
-            else:
-                response_text = "CON Please briefly type your poultry symptoms below:"
-
-        elif len(user_inputs) == 2:
-            # Screen 3: Complete & Trigger Database Log Operations
-            raw_symptoms = user_inputs[-1].strip()
-            session_state["symptoms"] = raw_symptoms
-            session_state["current_menu"] = "complete"
-
+            # --- POTENTIAL CRASH POINT 1: CACHE ---
             try:
-                # Find matching structural farmer profile reference if applicable
-                farmer_obj = Farmer.objects.filter(phone_number=phone_number).first()
+                session_state = cache.get(session_key)
+            except Exception as cache_err:
+                return HttpResponse(f"END Server Configuration Error (Cache): {str(cache_err)}", content_type="text/plain")
+
+            # State Initialization (Brand New Dial-in)
+            if not session_state:
+                try:
+                    # --- POTENTIAL CRASH POINT 2: DATABASE LOOKUP ---
+                    farmer = Farmer.objects.get(phone_number=phone_number)
+                    first_name = farmer.name.split()[0]
+                    welcome_msg = f"CON Welcome back, {first_name} to AgroCare.\n"
+                except Farmer.DoesNotExist:
+                    welcome_msg = "CON Welcome to AgroCare.\n"
+                except Exception as db_lookup_err:
+                    return HttpResponse(f"END Server Configuration Error (DB Query): {str(db_lookup_err)}", content_type="text/plain")
+
+                session_state = {
+                    "current_menu": "welcome",
+                    "language": None,
+                    "symptoms": "",
+                    "welcome_msg": welcome_msg
+                }
+                cache.set(session_key, session_state, timeout=300)
+
+            user_inputs = text.split("*") if text else []
+            response_text = ""
+
+            # Dynamic Menu State Machine Engine
+            if not text:
+                response_text = f"{session_state['welcome_msg']}Select Language:\n1. English\n2. Hausa\n3. Yoruba"
+                session_state["current_menu"] = "language_selection"
+
+            elif len(user_inputs) == 1:
+                lang_choice = user_inputs[0]
+                lang_map = {"1": "english", "2": "hausa", "3": "yoruba"}
+                chosen_lang = lang_map.get(lang_choice, "english")
                 
-                # Commit structural ledger record to PostgreSQL database
-                case_log = ConsultationLog.objects.create(
-                    farmer=farmer_obj,
-                    phone_number=phone_number,
-                    channel="USSD",
-                    raw_query=raw_symptoms,
-                    language=session_state["language"],
-                    status="pending" 
-                )
-
-                # SYNCHRONOUS HAND-OFF: Drop database record ID to Celery worker
-                process_ussd_consultation.delay(case_log.id)
-                logger.info(f"Saved Consultation Log ID {case_log.id}. Dispatched to background queue.")
+                session_state["language"] = chosen_lang
+                session_state["current_menu"] = "symptom_input"
                 
-            except Exception as db_err:
-                logger.error(f"Failed to compile production database entry: {str(db_err)}")
+                if chosen_lang == "hausa":
+                    response_text = "CON Da fatan za a rubuta alamomin cutar kaji a takaice:"
+                elif chosen_lang == "yoruba":
+                    response_text = "CON Jọ̀wọ́ kọ àwọn àmì àìsàn àwọn adìẹ rẹ ní ṣókí níhìn-ín:"
+                else:
+                    response_text = "CON Please briefly type your poultry symptoms below:"
 
-            # Deliver localized exit text copy to release the wireless session link instantly
-            if session_state["language"] == "hausa":
-                response_text = "END Mun gode! AgroCare AI yana nazarin bayanan ku. Za a aiko muku da sakon shawara ta SMS ba da jimawa ba."
-            elif session_state["language"] == "yoruba":
-                response_text = "END O ṣeun! AgroCare AI ń yẹ ẹjọ́ rẹ wò. Wọn yóò kọ̀wé ránṣẹ́ sí ọ lórí tẹlifóònù rẹ láìpẹ́."
-            else:
-                response_text = "END Thank you! AgroCare AI is evaluating your case. An advisory summary will be sent to your phone via SMS shortly."
+            elif len(user_inputs) == 2:
+                raw_symptoms = user_inputs[-1].strip()
+                session_state["symptoms"] = raw_symptoms
+                session_state["current_menu"] = "complete"
 
-            # Delete cache immediately since user exited cycle gracefully
-            cache.delete(session_key)
+                try:
+                    farmer_obj = Farmer.objects.filter(phone_number=phone_number).first()
+                    
+                    case_log = ConsultationLog.objects.create(
+                        farmer=farmer_obj,
+                        phone_number=phone_number,
+                        channel="USSD",
+                        raw_query=raw_symptoms,
+                        language=session_state["language"],
+                        status="pending" 
+                    )
 
-        # Persist data state mutations back to memory banks if step is active
-        if session_state["current_menu"] != "complete":
-            cache.set(session_key, session_state, timeout=300)
+                    process_ussd_consultation.delay(case_log.id)
+                    logger.info(f"Saved Consultation Log ID {case_log.id}. Dispatched to background queue.")
+                    
+                except Exception as db_err:
+                    logger.error(f"Failed to compile production database entry: {str(db_err)}")
 
-        # CRITICAL: Enforce raw plain text rendering back to telecom grid lines
-        return HttpResponse(response_text, content_type="text/plain")
+                if session_state["language"] == "hausa":
+                    response_text = "END Mun gode! AgroCare AI yana nazarin bayanan ku. Za a aiko muku da sakon shawara ta SMS ba da jimawa ba."
+                elif session_state["language"] == "yoruba":
+                    response_text = "END O ṣeun! AgroCare AI ń yẹ ẹjọ́ rẹ wò. Wọn yóò kọ̀wé ránṣẹ́ sí ọ lórí tẹlifóònù rẹ láìpẹ́."
+                else:
+                    response_text = "END Thank you! AgroCare AI is evaluating your case. An advisory summary will be sent to your phone via SMS shortly."
+
+                cache.delete(session_key)
+
+            if session_state["current_menu"] != "complete":
+                cache.set(session_key, session_state, timeout=300)
+
+            return HttpResponse(response_text, content_type="text/plain")
+
+        except Exception as general_err:
+            # If absolutely anything else breaks, hijack the response format 
+            # and render the Python text traceback directly onto the Africa's Talking screen
+            return HttpResponse(f"END Global View Crash: {str(general_err)}", content_type="text/plain")
