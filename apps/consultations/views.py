@@ -193,7 +193,7 @@ class USSDWebhookView(APIView):
                 else:
                     response_text = "CON Please briefly type your poultry symptoms below:"
 
-           elif len(user_inputs) == 2:
+            elif len(user_inputs) == 2:
                 raw_symptoms = user_inputs[-1].strip()
                 session_state["symptoms"] = raw_symptoms
                 session_state["current_menu"] = "complete"
