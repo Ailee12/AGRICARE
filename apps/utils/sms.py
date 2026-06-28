@@ -1,3 +1,7 @@
+import os
+import africastalking
+
+
 def send_outbound_sms(to_phone, message_body):
 
     USERNAME = os.getenv("AT_USERNAME", "sandbox")
