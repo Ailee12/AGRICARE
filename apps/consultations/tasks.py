@@ -17,7 +17,7 @@ def process_whatsapp_message(case_id):
         case = ConsultationLog.objects.get(id=case_id)
         
         # INJECTING MILESTONE 4 SIMULATION
-        ai_diagnosis = consult_agrocare_ai(case.raw_query,case.language)
+        ai_diagnosis = consult_agrocare_ai(case.symptoms_reported,case.language)
 
         ai_text = ai_diagnosis.get("answer", "")
         urgency_level = ai_diagnosis.get("urgency", "GREEN")
@@ -58,7 +58,7 @@ def process_ussd_consultation(case_id):
         logger.info(f"Worker processing logged case ID {case.id} — Symptoms: '{case.symptoms_reported}'")
         
         # 🧠 INJECTING MILESTONE 4 SIMULATION
-        ai_diagnosis = consult_agrocare_ai(case.raw_query,case.language)
+        ai_diagnosis = consult_agrocare_ai(case.symptoms_reported,case.language)
 
         ai_text = ai_diagnosis.get("answer", "")
         urgency_level = ai_diagnosis.get("urgency", "GREEN")
@@ -94,7 +94,7 @@ def process_farmer_case(case_id):
         case = ConsultationLog.objects.get(id=case_id)
         
         # 2. Get the diagnostic response from your live Railway AI service
-        ai_result = consult_agrocare_ai(case.raw_query, case.language)
+        ai_result = consult_agrocare_ai(case.symptoms_reported, case.language)
         
         ai_text = ai_result.get("answer")
         urgency_level = ai_result.get("urgency", "GREEN")
