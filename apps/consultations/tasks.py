@@ -1,4 +1,5 @@
 # apps/consultations/tasks.py
+import os
 from celery import shared_task
 import logging
 from apps.consultations.models import ConsultationLog
