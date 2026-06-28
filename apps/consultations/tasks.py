@@ -83,8 +83,8 @@ def process_ussd_consultation(case_id):
     except ConsultationLog.DoesNotExist:
         logger.error(f"Task received missing consultation log target record ID: {case_id}")
         return "FAILURE"
-    except Exception as general_err:
-        logger.error(f"Task runtime execution breakdown for case {case_id}: {str(general_err)}")
+    except Exception:
+        logger.exception(f"Task runtime execution breakdown for case {case_id}")
         return "FAILURE"
     
 
