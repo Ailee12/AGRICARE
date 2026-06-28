@@ -194,34 +194,34 @@ class USSDWebhookView(APIView):
                     response_text = "CON Please briefly type your poultry symptoms below:"
 
             elif len(user_inputs) == 2:
-            # Screen 3: Complete & Trigger Database Log Operations
-            raw_symptoms = user_inputs[-1].strip()
-            session_state["symptoms"] = raw_symptoms
-            session_state["current_menu"] = "complete"
-
-            try:
-                # Find matching structural farmer profile reference if applicable
-                farmer_obj = Farmer.objects.filter(phone_number=phone_number).first()
-                
-                # Dynamic fallback if the farmer profile doesn't have a baseline flock size set yet
-                detected_flock_size = farmer_obj.flock_size if (farmer_obj and farmer_obj.flock_size) else 1
-                
-                # --- FIXED: Matching your exact ConsultationLog model fields ---
-                case_log = ConsultationLog.objects.create(
-                    farmer=farmer_obj,
-                    current_flock_size=detected_flock_size,
-                    birds_affected=0,  
-                    birds_dead=0,      
-                    symptoms_reported=raw_symptoms,
-                    status="pending" 
-                )
-
-                # SYNCHRONOUS HAND-OFF: Drop database record ID to Celery worker
-                process_ussd_consultation.delay(case_log.id)
-                logger.info(f"Saved Consultation Log ID {case_log.id}. Dispatched to background queue.")
-                
-            except Exception as db_err:
-                logger.error(f"Failed to compile production database entry: {str(db_err)}")
+                # Screen 3: Complete & Trigger Database Log Operations
+                raw_symptoms = user_inputs[-1].strip()
+                session_state["symptoms"] = raw_symptoms
+                session_state["current_menu"] = "complete"
+    
+                try:
+                    # Find matching structural farmer profile reference if applicable
+                    farmer_obj = Farmer.objects.filter(phone_number=phone_number).first()
+                    
+                    # Dynamic fallback if the farmer profile doesn't have a baseline flock size set yet
+                    detected_flock_size = farmer_obj.flock_size if (farmer_obj and farmer_obj.flock_size) else 1
+                    
+                    # --- FIXED: Matching your exact ConsultationLog model fields ---
+                    case_log = ConsultationLog.objects.create(
+                        farmer=farmer_obj,
+                        current_flock_size=detected_flock_size,
+                        birds_affected=0,  
+                        birds_dead=0,      
+                        symptoms_reported=raw_symptoms,
+                        status="pending" 
+                    )
+    
+                    # SYNCHRONOUS HAND-OFF: Drop database record ID to Celery worker
+                    process_ussd_consultation.delay(case_log.id)
+                    logger.info(f"Saved Consultation Log ID {case_log.id}. Dispatched to background queue.")
+                    
+                except Exception as db_err:
+                    logger.error(f"Failed to compile production database entry: {str(db_err)}")
 
                 if session_state["language"] == "hausa":
                     response_text = "END Mun gode! AgroCare AI yana nazarin bayanan ku. Za a aiko muku da sakon shawara ta SMS ba da jimawa ba."
