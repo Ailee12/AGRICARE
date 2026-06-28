@@ -6,13 +6,10 @@ from apps.utils.ai_client import consult_agrocare_ai
 from apps.utils.whatsapp import send_whatsapp_message
 from apps.utils.sms import send_outbound_sms
 
-
-
 logger = logging.getLogger(__name__)
 
 @shared_task(name="apps.consultations.tasks.process_whatsapp_message")
 def process_whatsapp_message(case_id):
-   
     try:
         case = ConsultationLog.objects.get(id=case_id)
         
@@ -24,10 +21,9 @@ def process_whatsapp_message(case_id):
         should_escalate = ai_diagnosis.get("escalate", False)
         detected_disease = ai_diagnosis.get("disease_name", "Condition Evaluated")
 
-        case.ai_response = ai_text
-        case.detected_disease_name = detected_disease
+        # --- FIXED: Use actual model fields ---
+        case.ai_diagnosis = f"[{detected_disease}] | Urgency: {urgency_level} | {ai_text}"
         
-        # 3. Handle dashboard emergency tracking states
         if should_escalate or urgency_level in ["RED", "HIGH"]:
             case.status = "escalated"
             case.save()
@@ -37,13 +33,16 @@ def process_whatsapp_message(case_id):
             case.save()
             delivery_msg = f"AgroCare AI Advice for {detected_disease}:\n{ai_text}"
 
-        # 4. Use your existing WhatsApp utility function to reply to their phone
-        send_whatsapp_message(case.phone_number, delivery_msg)
+        # --- FIXED: Use case.farmer.phone_number ---
+        send_whatsapp_message(case.farmer.phone_number, delivery_msg)
         return f"SUCCESS_WHATSAPP_{case_id}"
     
     except ConsultationLog.DoesNotExist:
+        logger.error(f"WhatsApp task received missing log ID: {case_id}")
         return "FAILURE"
-    
+    except Exception as err:
+        logger.error(f"WhatsApp task breakdown for case {case_id}: {str(err)}")
+        return "FAILURE"
 
 
 @shared_task(name="apps.consultations.tasks.process_ussd_consultation")
@@ -59,19 +58,15 @@ def process_ussd_consultation(case_id):
         
         detected_lang = case.farmer.preferred_language if (case.farmer and case.farmer.preferred_language) else "en"
         
-        # Call the live AI engine
         ai_diagnosis = consult_agrocare_ai(case.symptoms_reported, detected_lang)
 
-        # Parse keys out of the expected dictionary payload
         ai_text = ai_diagnosis.get("answer", "")
         urgency_level = ai_diagnosis.get("urgency", "GREEN")
         should_escalate = ai_diagnosis.get("escalate", False)
         detected_disease = ai_diagnosis.get("disease_name", "Condition Evaluated")
 
-        # --- FIXED: Saving directly into your model's actual 'ai_diagnosis' field ---
         case.ai_diagnosis = f"[{detected_disease}] | Urgency: {urgency_level} | {ai_text}"
         
-        # Handle dashboard emergency tracking states
         if should_escalate or urgency_level in ["RED", "HIGH"]:
             case.status = "escalated"
             case.save()
@@ -81,7 +76,6 @@ def process_ussd_consultation(case_id):
             case.save()
             delivery_msg = f"AgroCare AI Advice for {detected_disease}:\n{ai_text}"
 
-        # Read the phone number from the linked farmer object securely
         send_outbound_sms(case.farmer.phone_number, delivery_msg)
         return f"SUCCESS_USSD_{case_id}"
     
@@ -89,31 +83,27 @@ def process_ussd_consultation(case_id):
         logger.error(f"Task received missing consultation log target record ID: {case_id}")
         return "FAILURE"
     except Exception as general_err:
-        # Crucial fallback: captures AI network request timeouts or schema format exceptions
         logger.error(f"Task runtime execution breakdown for case {case_id}: {str(general_err)}")
         return "FAILURE"
     
 
 @shared_task(name="apps.consultations.tasks.process_farmer_case")
 def process_farmer_case(case_id):
-    
     try:
-        # 1. Pull the case details from your PostgreSQL Database
         case = ConsultationLog.objects.get(id=case_id)
         
-        # 2. Get the diagnostic response from your live Railway AI service
-        ai_result = consult_agrocare_ai(case.symptoms_reported, case.language)
+        # --- FIXED: Use relation language fallback ---
+        detected_lang = case.farmer.preferred_language if (case.farmer and case.farmer.preferred_language) else "en"
+        ai_result = consult_agrocare_ai(case.symptoms_reported, detected_lang)
         
-        ai_text = ai_result.get("answer")
+        ai_text = ai_result.get("answer", "")
         urgency_level = ai_result.get("urgency", "GREEN")
         should_escalate = ai_result.get("escalate", False)
         detected_disease = ai_result.get("disease_name", "Condition Evaluated")
 
-        # 3. Update the permanent PostgreSQL database tracking record
-        case.ai_response = ai_text
-        case.detected_disease_name = detected_disease
+        # --- FIXED: Use actual model fields ---
+        case.ai_diagnosis = f"[{detected_disease}] | Urgency: {urgency_level} | {ai_text}"
 
-        # Emergency Interception System (Check for critical outbreaks)
         if should_escalate or urgency_level in ["RED", "HIGH"]:
             case.status = "escalated"
             case.save()
@@ -123,14 +113,17 @@ def process_farmer_case(case_id):
             case.save()
             delivery_msg = f"AgroCare AI Advice for {detected_disease}:\n{ai_text}"
 
-        # 4. Smart Router: Send the message back via the channels they used
+        # --- FIXED: Use case.farmer.phone_number ---
         if case.channel == "USSD":
-            send_outbound_sms(case.phone_number, delivery_msg)
+            send_outbound_sms(case.farmer.phone_number, delivery_msg)
         elif case.channel == "WHATSAPP":
-            send_whatsapp_message(case.phone_number, delivery_msg)
+            send_whatsapp_message(case.farmer.phone_number, delivery_msg)
         
         return f"SUCCESS_LOG_{case_id}"
 
     except ConsultationLog.DoesNotExist:
-        logger.error(f" Case ID {case_id} not found in database registry.")
+        logger.error(f"Case ID {case_id} not found in database registry.")
+        return "FAILURE"
+    except Exception as general_err:
+        logger.error(f"General task breakdown for case {case_id}: {str(general_err)}")
         return "FAILURE"
