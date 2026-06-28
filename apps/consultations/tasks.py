@@ -78,8 +78,8 @@ def process_ussd_consultation(case_id):
             case.save()
             delivery_msg = f"AgroCare AI Advice for {detected_disease}:\n{ai_text}"
 
-        # 4. Use your existing WhatsApp utility function to reply to their phone
-        send_outbound_sms(case.phone_number, delivery_msg)
+        # Read the phone number from the linked farmer object!
+        send_outbound_sms(case.farmer.phone_number, delivery_msg)
         return f"SUCCESS_USSD_{case_id}"
     
     except ConsultationLog.DoesNotExist:
