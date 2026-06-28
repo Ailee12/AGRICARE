@@ -155,8 +155,7 @@ class USSDWebhookView(APIView):
                 try:
                     # --- POTENTIAL CRASH POINT 2: DATABASE LOOKUP ---
                     farmer = Farmer.objects.get(phone_number=phone_number)
-                    first_name = farmer.name.split()[0]
-                    welcome_msg = f"CON Welcome back, {first_name} to AgroCare.\n"
+                    welcome_msg = f"CON Welcome back to AgroCare (+{phone_number[-4:]}).\n"
                 except Farmer.DoesNotExist:
                     welcome_msg = "CON Welcome to AgroCare.\n"
                 except Exception as db_lookup_err:
@@ -203,7 +202,6 @@ class USSDWebhookView(APIView):
                     farmer_obj, created = Farmer.objects.get_or_create(
                         phone_number=phone_number,
                         defaults={
-                            "name": "Anonymous Farmer",
                             "consent_accepted": True,  # Auto-bypass for emergency testing channels
                             "flock_size": 1
                         }
