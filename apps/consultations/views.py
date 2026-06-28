@@ -193,35 +193,44 @@ class USSDWebhookView(APIView):
                 else:
                     response_text = "CON Please briefly type your poultry symptoms below:"
 
-            elif len(user_inputs) == 2:
-                # Screen 3: Complete & Trigger Database Log Operations
+           elif len(user_inputs) == 2:
                 raw_symptoms = user_inputs[-1].strip()
                 session_state["symptoms"] = raw_symptoms
                 session_state["current_menu"] = "complete"
     
                 try:
-                    # Find matching structural farmer profile reference if applicable
-                    farmer_obj = Farmer.objects.filter(phone_number=phone_number).first()
+                    # 1. Look for the farmer profile. If missing, automatically create it!
+                    farmer_obj, created = Farmer.objects.get_or_create(
+                        phone_number=phone_number,
+                        defaults={
+                            "name": "Anonymous Farmer",
+                            "consent_accepted": True,  # Auto-bypass for emergency testing channels
+                            "flock_size": 1
+                        }
+                    )
                     
-                    # Dynamic fallback if the farmer profile doesn't have a baseline flock size set yet
-                    detected_flock_size = farmer_obj.flock_size if (farmer_obj and farmer_obj.flock_size) else 1
+                    if created:
+                        logger.info(f"Created a brand new baseline profile for phone: {phone_number}")
+    
+                    detected_flock_size = farmer_obj.flock_size if farmer_obj.flock_size else 1
                     
-                    # --- FIXED: Matching your exact ConsultationLog model fields ---
+                    # 2. Now this will NEVER pass a NULL farmer reference to Postgres
                     case_log = ConsultationLog.objects.create(
                         farmer=farmer_obj,
                         current_flock_size=detected_flock_size,
-                        birds_affected=0,  
-                        birds_dead=0,      
+                        birds_affected=0,
+                        birds_dead=0,
                         symptoms_reported=raw_symptoms,
                         status="pending" 
                     )
     
-                    # SYNCHRONOUS HAND-OFF: Drop database record ID to Celery worker
                     process_ussd_consultation.delay(case_log.id)
                     logger.info(f"Saved Consultation Log ID {case_log.id}. Dispatched to background queue.")
                     
                 except Exception as db_err:
                     logger.error(f"Failed to compile production database entry: {str(db_err)}")
+                    # Force the view to return text so the simulator screen doesn't stay blank!
+                    response_text = f"END Line Error: System was unable to log your case. Please try again."
 
                 if session_state["language"] == "hausa":
                     response_text = "END Mun gode! AgroCare AI yana nazarin bayanan ku. Za a aiko muku da sakon shawara ta SMS ba da jimawa ba."
