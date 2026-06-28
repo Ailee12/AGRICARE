@@ -33,8 +33,8 @@ def consult_agrocare_ai(farmer_text: str, language_code: str) -> dict:
         
         logger.error(f"AI Engine server response code {response.status_code}: {response.text}")
         
-    except Exception as e:
-        logger.error(f"Failed to cleanly communicate with AI Engine on Railway: {str(e)}")
+   except Exception:
+    logger.exception("Failed to cleanly communicate with AI Engine on Railway")
         
     # Return pristine fallback payload structure so tasks never break or notice a failure
     return {
