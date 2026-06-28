@@ -1,6 +1,9 @@
 import os
 import africastalking
 import requests
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def send_outbound_sms(to_phone, message_body):
