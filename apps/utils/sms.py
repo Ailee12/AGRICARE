@@ -1,5 +1,6 @@
 import os
 import africastalking
+import requests
 
 
 def send_outbound_sms(to_phone, message_body):
