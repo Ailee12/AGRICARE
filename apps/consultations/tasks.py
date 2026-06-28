@@ -16,8 +16,8 @@ def process_whatsapp_message(case_id):
     try:
         case = ConsultationLog.objects.get(id=case_id)
         
-        # INJECTING MILESTONE 4 SIMULATION
-        ai_diagnosis = consult_agrocare_ai(case.symptoms_reported,case.language)
+        detected_lang = case.farmer.preferred_language if (case.farmer and case.farmer.preferred_language) else "en"
+        ai_diagnosis = consult_agrocare_ai(case.symptoms_reported, detected_lang)
 
         ai_text = ai_diagnosis.get("answer", "")
         urgency_level = ai_diagnosis.get("urgency", "GREEN")
@@ -57,8 +57,8 @@ def process_ussd_consultation(case_id):
         case = ConsultationLog.objects.get(id=case_id)
         logger.info(f"Worker processing logged case ID {case.id} — Symptoms: '{case.symptoms_reported}'")
         
-        # 🧠 INJECTING MILESTONE 4 SIMULATION
-        ai_diagnosis = consult_agrocare_ai(case.symptoms_reported,case.language)
+        detected_lang = case.farmer.preferred_language if (case.farmer and case.farmer.preferred_language) else "en"
+        ai_diagnosis = consult_agrocare_ai(case.symptoms_reported, detected_lang)
 
         ai_text = ai_diagnosis.get("answer", "")
         urgency_level = ai_diagnosis.get("urgency", "GREEN")
